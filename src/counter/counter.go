@@ -39,6 +39,7 @@ func (c *Counter) reset() int {
 }
 
 func (c *Counter) Elapsed() int  {
+	//fmt.Println("counter Elapsed ", c.counter(), " ", c.Start)
 	return c.diff(c.counter(), c.Start)
 }
 
