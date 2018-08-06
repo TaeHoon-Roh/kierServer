@@ -3,8 +3,6 @@ package usepackbus
 import (
 	"fmt"
 	"encoding/binary"
-	"strings"
-	"encoding/hex"
 )
 
 type DataTypeDef struct {
@@ -14,8 +12,7 @@ type DataTypeDef struct {
 	Size   byte
 }
 
-
-func InitDataTypeDef() ([]DataTypeDef){
+func InitDataTypeDef() ([]DataTypeDef) {
 
 	datatype := make([]DataTypeDef, 27)
 
@@ -91,8 +88,6 @@ type PyPacket struct {
 	TableDefSig uint16
 }
 
-
-
 func (p *PyPacket) Decode_pkt(pkt []byte) {
 	//fmt.Println("Decode_Pkt, input pkt size : ", len(pkt))
 
@@ -111,6 +106,13 @@ func (p *PyPacket) Decode_pkt(pkt []byte) {
 	p.DstNodeId = uint16(rehead[2]) & 0x0FFF
 	p.HopCnt = byte(rehead[3] >> 12)
 	p.SrcNodeId = uint16(rehead[3]) & 0x0FFF
+
+	defer func() {
+		if err := recover();err != nil{
+			fmt.Println("Error!!!!", err)
+		}
+	}()
+
 
 	remsg := pkt[8:]
 	p.MsgType = remsg[0]
@@ -195,8 +197,6 @@ func (p *PyPacket) Encode_bin(encode_flag string, size int) ([]byte) {
 		result[3] = p.HopMetric
 		result[4], result[5] = Uint16ToByte(p.VerifyIntv)
 
-
-
 		return result
 		break
 	case "Pkt_Clock_cmd":
@@ -266,11 +266,12 @@ func (p *PyPacket) Pkt_fileupload_cmd(DstNodeId uint16, SrcNodeId uint16, FileNa
 		pkt = append(pkt, msg[i])
 	}
 	a, b := Uint16ToByte(CalcSigNullifier(CalcSigFor(pkt, 0xAAAA)))
-	if p.FileOffset == 29184{
-		a = 0xdb
-	}
+	/*	if p.FileOffset == 29184{
+			a = 0xdb
+		}*/
 
 	pkt = append(pkt, a, b)
+	fmt.Println("Pkt size : ", len(pkt))
 
 	return pkt, p.TranNbr
 }
@@ -404,13 +405,13 @@ func (p *PyPacket) Pkt_Clock_cmd(DstNodeId uint16, SrcNodeId uint16, Adjustment 
 	return pkt, len(pkt)
 }
 
-func (p *PyPacket) Pkt_Bye_Cmd(DstNodeId uint16, SrcNodeId uint16) ([]byte, int){
+func (p *PyPacket) Pkt_Bye_Cmd(DstNodeId uint16, SrcNodeId uint16) ([]byte, int) {
 
 	hdr := p.PakBus_hdr(DstNodeId, SrcNodeId, p.HiProtocode)
 	msg := p.Encode_bin("Pkt_Bye_Cmd", 2)
 
 	pkt := hdr
-	for i := 0 ; i < len(msg) ; i++{
+	for i := 0; i < len(msg); i++ {
 		pkt = append(pkt, msg[i])
 	}
 	return pkt, len(pkt)
@@ -479,7 +480,7 @@ func CalcSigFor(buff []byte, seed uint16) (uint16) {
 	sig := seed
 	for i := 0; i < len(buff); i++ {
 		x := uint16(buff[i])
-		if x == 0 && len(buff) == 2{
+		if x == 0 && len(buff) == 2 {
 			continue
 		}
 		j := sig
@@ -503,13 +504,13 @@ func CalcSigNullifier(sig uint16) (uint16) {
 	b2buff[0], b2buff[1] = Uint16ToByte(nulb)
 	nullifbuffer := make([]byte, 2)
 
-	for i:= 0 ; i < 2 ; i++{
+	for i := 0; i < 2; i++ {
 		sig = CalcSigFor(b2buff, sig)
-		sig2 = (sig<<1) & 0x1FF
+		sig2 = (sig << 1) & 0x1FF
 		if sig2 >= 0x100 {
 			sig2 += 1
 		}
-		nulb = ((0x100 - (sig2 + (sig >>8))) & 0xFF)
+		nulb = ((0x100 - (sig2 + (sig >> 8))) & 0xFF)
 		b2buff[0], b2buff[1] = Uint16ToByte(nulb)
 		nullif += nulb
 		nullifbuffer[i] = byte(nulb)
@@ -517,8 +518,6 @@ func CalcSigNullifier(sig uint16) (uint16) {
 	b2buff[0], b2buff[1] = Uint16ToByte(nullif)
 	nullif = binary.BigEndian.Uint16(nullifbuffer)
 	return nullif
-
-
 
 	/*var new_seed uint16 = uint16((sig << 1) & uint16(0x1FF))
 	null1 := make([]byte, 1)
@@ -546,23 +545,32 @@ func CalcSigNullifier(sig uint16) (uint16) {
 }
 
 func quote(pkt []byte) ([]byte) {
-	var str string
+	result := make([]byte, 0)
 	for i := 0; i < len(pkt); i++ {
-		str += fmt.Sprintf("%0.2x", pkt[i])
+		if pkt[i] == 0xbc {
+			result = append(result, 0xbc, 0xdc)
+		} else if pkt[i] == 0xbd {
+			result = append(result, 0xbc, 0xdd)
+		} else {
+			result = append(result, pkt[i])
+		}
 	}
-	str = strings.Replace(str, "bc", "bcdc", 100)
-	str = strings.Replace(str, "bd", "bcdd", 100)
-	result, _ := hex.DecodeString(str)
 	return result
 }
 
 func uquote(pkt []byte) ([]byte) {
-	var str string
+	fmt.Println("Uqoute check : ", pkt)
+	result := make([]byte, 0)
 	for i := 0; i < len(pkt); i++ {
-		str += fmt.Sprintf("%0.2x", pkt[i])
+		if pkt[i] == 0xbc && pkt[i+1] == 0xdd {
+			result = append(result, 0xbd)
+			i++
+		} else if pkt[i] == 0xbc && pkt[i+1] == 0xdc {
+			result = append(result, 0xbc)
+			i++
+		} else {
+			result = append(result, pkt[i])
+		}
 	}
-	str = strings.Replace(str, "bcdd", "bd", 100)
-	str = strings.Replace(str, "bcdc", "bc", 100)
-	result, _ := hex.DecodeString(str)
 	return result[:len(result)-2]
 }

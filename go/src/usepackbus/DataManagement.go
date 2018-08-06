@@ -6,7 +6,6 @@ import (
 	"bufio"
 	"strings"
 	"net"
-	"time"
 )
 
 var yy_ip = "106.249.253.227:6785"
@@ -26,9 +25,10 @@ var TableList TableDef
 var FileList FileDef
 var FileData string
 
-func GetTableList(cnn *net.TCPConn, FileName string) (TableDef) {
+func GetTableList(cnn *net.TCPConn, FileName string, TranNbr byte) (TableDef) {
 
 	TranNbr = NewTranNbr()
+	TranNbr = TranNbr
 
 	out_packet := PyPacket{}
 	temp, _ := out_packet.Pkt_fileupload_cmd(1, 2050, FileName, 0x00000000, 1, 0x00)
@@ -48,7 +48,9 @@ func GetTableList(cnn *net.TCPConn, FileName string) (TableDef) {
 
 		fmt.Println("ReadData !!!!", "Size is : ", size)
 		in_buffer.Reset(cnn)
-		if size == 0 {
+		if size == -999 {
+			fmt.Println(cnn.LocalAddr(), FileName,"Error!!")
+			return TableDef{}
 			break
 		}
 		for i := 0; i < size; i++ {
@@ -130,7 +132,7 @@ func GetTableList(cnn *net.TCPConn, FileName string) (TableDef) {
 
 }
 
-func Collect_Data(cnn *net.TCPConn, tabledef TableDef, tablename string) {
+func Collect_Data(cnn *net.TCPConn, tabledef TableDef, tablename string) (string){
 	tablenbr := tabledef.GetTableNbr(tablename)
 	out_packet := PyPacket{}
 	temp, _ := out_packet.Pkt_collectdata_cmd(1, 2050, tablenbr+1, tabledef.TabelHeader[tablenbr].Table_Sig)
@@ -145,6 +147,10 @@ func Collect_Data(cnn *net.TCPConn, tabledef TableDef, tablename string) {
 	in_packet := PyPacket{}
 
 	readbuffer, size := tcpReadBuffer(in_buffer)
+	if size == -999 {
+		fmt.Println(cnn.LocalAddr(), tabledefloop, "Error!!")
+		return "Error Data!!"
+	}
 	in_buffer.Reset(cnn)
 	fmt.Println("ReadData !!!!", "Size is : ", size)
 	for i := 0; i < size; i++ {
@@ -158,13 +164,16 @@ func Collect_Data(cnn *net.TCPConn, tabledef TableDef, tablename string) {
 	fmt.Println("Start CollectData")
 	frag := tabledef.Parse_CollectData(in_packet.Raw, 8)
 	Print_Frag(frag)
+	str := fmt.Sprintf("%v", frag)
+	return str
 }
 
 
 
-func GetFileList(cnn *net.TCPConn, FileName string) (FileDef) {
+func GetFileList(cnn *net.TCPConn, FileName string, TranNbr byte) (FileDef) {
 
 	TranNbr = NewTranNbr()
+	TranNbr = TranNbr
 
 	out_packet := PyPacket{}
 	temp, _ := out_packet.Pkt_fileupload_cmd(1, 2050, FileName, 0x00000000, TranNbr, 0x00)
@@ -181,10 +190,14 @@ func GetFileList(cnn *net.TCPConn, FileName string) (FileDef) {
 	for {
 
 		readbuffer, size := tcpReadBuffer(in_buffer)
+		if size == -999 {
+			fmt.Println(cnn.LocalAddr(), FileName, "Error!!")
+			return FileDef{}
+			break
+		}
 		fmt.Println("FileDataBuffer Size : ", len(FileDataBuffer))
-		in_buffer.Reset(cnn)
-		/*fmt.Println("ReadData !!!!", "Size is : ", size)
 		//in_buffer.Reset(cnn)
+		/*fmt.Println("ReadData !!!!", "Size is : ", size)
 		if size == 0 {
 			break
 		}
@@ -267,7 +280,9 @@ func Collect_Data_File(cnn *net.TCPConn, FileName string) ([]byte) {
 	TranNbr = 2
 
 	out_packet := PyPacket{}
-	temp, _ := out_packet.Pkt_fileupload_cmd(1, 2050, FileName, 0x00000000, TranNbr, 0x00)
+	//offset := 98816
+	offset := 0x00000000
+	temp, _ := out_packet.Pkt_fileupload_cmd(1, 2050, FileName, uint(offset), TranNbr, 0x00)
 	fmt.Println()
 
 	in_buffer := bufio.NewReader(cnn)
@@ -281,8 +296,12 @@ func Collect_Data_File(cnn *net.TCPConn, FileName string) ([]byte) {
 	for {
 
 		readbuffer, size := tcpReadBuffer(in_buffer)
+		if size == -999 {
+			fmt.Println(cnn.LocalAddr(), FileName, "Error!!")
+			return nil
+			break
+		}
 		in_buffer.Reset(cnn)
-		time.Sleep(1*time.Nanosecond)
 		if size == 0 {
 			break
 		}
@@ -337,7 +356,8 @@ func Collect_Data_File(cnn *net.TCPConn, FileName string) ([]byte) {
 						for i := 0; i < len(in_packet.FileData); i++ {
 							FileDataBuffer = append(FileDataBuffer, in_packet.FileData[i])
 						}
-						temp, _ = out_packet.Pkt_fileupload_cmd(1, 2050, FileName, in_packet.FileOffset, TranNbr, 0x00)
+						temp, _ := out_packet.Pkt_fileupload_cmd(1, 2050, FileName, in_packet.FileOffset, TranNbr, 0x00)
+						fmt.Println("Temp size : ", len(temp))
 						tcpSendBuffer(out_buffer, temp)
 					}
 					//fmt.Println("FileOffset Check : ", in_packet.FileOffset)
