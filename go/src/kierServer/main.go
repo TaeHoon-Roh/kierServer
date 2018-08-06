@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"os"
 	"usepackbus"
-	"sync"
 	"net"
 	"bufio"
 	"time"
+	"strconv"
+	"strings"
 )
 
 var yy_ip = "106.249.253.227:6785"
@@ -28,10 +29,6 @@ type DataSet struct {
 }
 
 func main() {
-
-	var wait sync.WaitGroup
-	wait.Add(4)
-
 	DataSet := make([]DataSet, 4)
 
 	DataSet[0].City_Name = "YangYang"
@@ -81,8 +78,31 @@ func main() {
 	//fmt.Println("Check",DataSet[0].TableList.Table_Count)
 	//usepackbus.Collect_Data(ConnSet[0], DataSet[0].TableList, "Public")
 
+/*	cnt := DataSet[0].FileList.FileDef_Counter
+	dirpath, filepath := MakeFileName(DataSet[0], DataSet[0].FileList.FileDef[cnt-1].LastUpdate, "CRD:YangYang.1min_data_35.dat")
 
-	//SaveFile(ConnSet[0], DataSet[0])
+	os.MkdirAll(dirpath, os.ModePerm)
+	fmt.Println("File Path : ",filepath)
+	file, err := os.OpenFile(
+		filepath,
+		os.O_CREATE|os.O_RDWR|os.O_TRUNC, // 파일이 없으면 생성,
+		// 읽기/쓰기, 파일을 연 뒤 내용 삭제
+		os.FileMode(0644), // 파일 권한은 644
+	)
+
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	FileBuffer := usepackbus.Collect_Data_File(ConnSet[0], "CRD:YangYang.1min_data_35.dat")
+
+	w := bufio.NewWriter(file)
+	w.Write(FileBuffer)
+	w.Flush()
+	file.Close()*/
+	FileBuffer := usepackbus.Collect_Data_File(ConnSet[0], "CRD:YangYang.1sec_data_30.dat")
+	fmt.Println(FileBuffer)
+	//SaveFile(ConnSet[2], DataSet[2])
 
 }
 
@@ -93,12 +113,14 @@ func SaveFile(cnn *net.TCPConn, set DataSet) {
 	for {
 		file_last_update := set.FileList.FileDef[cnt-1].LastUpdate
 		file_name := set.FileList.FileDef[cnt-1].FileName
+		file_name = "CRD:Seoul.1sec_data_38.dat"
 		if t_flag.Unix() > file_last_update.Unix() {
 			break
 		} else {
 			fmt.Println(file_last_update)
 
-			_, filepath := MakeFileName(set, file_last_update, file_name)
+			dirpath, filepath := MakeFileName(set, file_last_update, file_name)
+			os.MkdirAll(dirpath, os.ModePerm)
 			fmt.Println(filepath)
 			file, err := os.OpenFile(
 				filepath,
@@ -111,7 +133,7 @@ func SaveFile(cnn *net.TCPConn, set DataSet) {
 				fmt.Println(err)
 			}
 
-			FileBuffer := usepackbus.Collect_Data_File(cnn, set.FileList.FileDef[cnt-1].FileName)
+			FileBuffer := usepackbus.Collect_Data_File(cnn, file_name)
 
 			w := bufio.NewWriter(file)
 			w.Write(FileBuffer)
@@ -124,62 +146,6 @@ func SaveFile(cnn *net.TCPConn, set DataSet) {
 
 }
 
-/*
-func Clock_Sync() {
-	cnn := tcptest()
-	if TranNbr == '\000' {
-		TranNbr = usepackbus.NewTranNbr()
-	}
-
-	out_packet := usepackbus.PyPacket{}
-	in_packet := usepackbus.PyPacket{}
-	temp, _ := out_packet.Pkt_Clock_cmd(1, 2050, []uint{0, 0}, 0x0000, TranNbr)
-	fmt.Println()
-
-	in_buffer := bufio.NewReader(cnn)
-	out_buffer := bufio.NewWriter(cnn)
-
-	for i := 0; i < 1; i++ {
-		t1 := time.Now().Nanosecond()
-		tcpSendBuffer(out_buffer, temp)
-		//retime := time.Time{}
-		readbuffer, size := tcpReadBuffer(in_buffer)
-		fmt.Println("ReadData !!!!", "Size is : ", size)
-		//in_buffer.Reset(cnn)
-		if size == 0 {
-			fmt.Println("null")
-		}
-		for i := 0; i < size; i++ {
-			fmt.Printf("\\x%0.2x", readbuffer[i])
-		}
-		fmt.Println()
-		in_packet.Decode_pkt(readbuffer)
-		t2 := time.Now().Nanosecond()
-		delay := (t2 - t1) / 2
-		fmt.Println("Delay is : ", delay)
-		//longtime := in_packet.Nsec_To_Time()
-	}
-
-}
-*/
-
-/*
-func tcptest() (*net.TCPConn) {
-	service := yy_ip
-
-	tcpAddr, err := net.ResolveTCPAddr("tcp4", service)
-	checkError(err)
-
-	conn, err := net.DialTCP("tcp", nil, tcpAddr)
-
-	//conn.SetReadDeadline(time.Now().Add(time.Second * 10))
-	//conn.SetReadDeadline(time.Now().Add(10 * time.Second))
-	checkError(err)
-
-	return conn
-}
-
-*/
 func checkError(err error) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Fatal error : %s", err.Error())
@@ -188,95 +154,23 @@ func checkError(err error) {
 
 }
 
-/*
-func testPython(choice int) {
-	str_test := "\xBD\xa0\x01\x98\x02\x10\x01\x08\x02\x09\x02\x00\x00\x05\x00\x08\xe9\xfa\x00\x00\x00\x01\x00\x00\"\xe8\xBD"
-	str1 := "\xBD\x90\x01X\x02\x00\x01\x08\x02\t\x01\x00\x02\x07\x08\xf6\x86\xBD"
-	str2 := "\xBD\xa0\x01\x98\x02\x10\x01\x08\x02\x1d\x02\x00\x00.TDF\x00\x00\x00\x00\x00\x00\x02\x00\xeet\xBD"
-	str3 := "\xBD\xa0\x01\x98\x02\x10\x01\x08\x02\x1d\x02\x00\x00.TDF\x00\x00\x00\x00\x02\x00\x02\x00\xb6]\xBD"
-	str4 := "\xBD\xa0\x01\x98\x02\x10\x01\x08\x02\x1d\x02\x00\x00.TDF\x00\x00\x00\x00\x04\x00\x02\x00|E\xBD"
-	str5 := "\xBD\xa0\x01\x98\x02\x10\x01\x08\x02\x1d\x02\x00\x00.TDF\x00\x00\x00\x00\x06\x00\x02\x00B-\xBD"
-	str6 := "\xBD\xa0\x01\x98\x02\x10\x01\x08\x02\x1d\x02\x00\x00.TDF\x00\x00\x00\x00\x08\x00\x02\x00\x08\x15\xBD"
-	str7 := "\xBD\xa0\x01\x98\x02\x10\x01\x08\x02\x1d\x02\x00\x00.TDF\x00\x00\x00\x00\n\x00\x02\x00\xcf\xfd\xBD"
-	str8 := "\xBD\xa0\x01\x98\x02\x10\x01\x08\x02\x1d\x02\x00\x00.TDF\x00\x00\x00\x00\x0c\x00\x02\x00\x95\xe5\xBD"
-	str9 := "\xBD\xa0\x01\x98\x02\x10\x01\x08\x02\x1d\x02\x00\x00.TDF\x00\x00\x00\x00\r\xa7\x02\x00\xa7\x97\xBD"
+func MakeFileName(set DataSet, t time.Time, filename string) (string, string) {
+	fmt.Println("MakeFileName!!")
+	str := "/home/uxfac/Documents/"
+	str += set.City_Name + "/"
+	year := t.Year()
+	fmt.Println("Year : ", year)
+	str += strconv.Itoa(year) + "/"
+	month := int(t.Month())
+	str += strconv.Itoa(month)
+	dirpath := str
 
-	if choice == 2 {
-		inpack := usepackbus.PyPacket{}
-		temp := testPacket(str_test)
-		cnn := tcptest()
-		cnn.Write(temp)
-		data := make([]byte, 4096)
-		size, _ := cnn.Read(data)
-		inpack.Decode_pkt(data)
-		fmt.Println("\nsize is : ", size)
-		fmt.Printf("\n%x\t", data[:size])
-		fmt.Println("Message Type", inpack.MsgType)
-	} else {
-		temp := testPacket(str1)
-		cnn := tcptest()
-		cnn.Write(temp)
-		data := make([]byte, 4096)
-		size, _ := cnn.Read(data)
-		fmt.Printf("\n%x\t", data[:size])
 
-		temp = testPacket(str2)
-		cnn.Write(temp)
-		size, _ = cnn.Read(data)
-		fmt.Printf("\n%x\t", data[:size])
+	filenamebuff := strings.Split(filename,".")
+	filenamebuffer := strings.Split(filenamebuff[1], "_")
 
-		temp = testPacket(str3)
-		cnn.Write(temp)
-		size, _ = cnn.Read(data)
-		fmt.Printf("\n%x\t", data[:size])
+	str += "/"+filenamebuff[0] + "_" + filenamebuffer[1] + "_"+ t.String() + ".dat"
+	filepath := str
 
-		temp = testPacket(str4)
-		cnn.Write(temp)
-		size, _ = cnn.Read(data)
-		fmt.Printf("\n%x\t", data[:size])
-
-		temp = testPacket(str5)
-		cnn.Write(temp)
-		size, _ = cnn.Read(data)
-		fmt.Printf("\n%x\t", data[:size])
-
-		temp = testPacket(str6)
-		cnn.Write(temp)
-		size, _ = cnn.Read(data)
-		fmt.Printf("\n%x\t", data[:size])
-
-		temp = testPacket(str7)
-		cnn.Write(temp)
-		size, _ = cnn.Read(data)
-		fmt.Printf("\n%x\t", data[:size])
-
-		temp = testPacket(str8)
-		cnn.Write(temp)
-		size, _ = cnn.Read(data)
-		fmt.Printf("\n%x\t", data[:size])
-
-		temp = testPacket(str9)
-		cnn.Write(temp)
-		size, _ = cnn.Read(data)
-		fmt.Printf("\n%x\t", data[:size])
-	}
+	return dirpath, filepath
 }
-
-func testPacket(str string) ([]byte) {
-
-	buff := strings.Split(str, "\\")
-	fmt.Println("buff size : ", len(buff))
-	for i := range buff {
-		fmt.Printf("%x\t", buff[i])
-	}
-	fmt.Println()
-
-	temp := []byte(buff[0])
-
-	for i := range temp {
-		fmt.Printf("%x\t", temp[i])
-	}
-
-	return temp
-}
-*/
